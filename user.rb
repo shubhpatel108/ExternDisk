@@ -1,7 +1,7 @@
 class User
 	@@filepath = nil
 
-	attr_accessor :username
+	attr_accessor :username, :socket
 
 	def self.filepath=(path=nil)
 		@@filepath = File.join(APP_ROOT, path)
@@ -29,12 +29,14 @@ class User
     return file_usable?
   end
 
-  def initialize(un)
+  def initialize(un, sock)
 		@username = un || ""
+		@socket = sock || nil
   end
 
   def save
   	return false unless User.file_usable?
+		return User.exists?
 		File.open(@@filepath, "a") do |file|
 			file.puts "#{@username}\n"
 		end
@@ -52,5 +54,15 @@ class User
       file.close
     end
     return users
+	end
+
+	def self.exists?
+		file = File.new(@@filepath, 'r')
+		file.each_line do |line|
+			if @username == line.chomp.split("\t")[0]
+				return true
+			end
+		end
+		return false
 	end
 end

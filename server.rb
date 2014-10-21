@@ -3,9 +3,10 @@ require 'user.rb'
 APP_ROOT = File.dirname(__FILE__)
 
 class Server
-  attr_accessor :server
+  attr_accessor :server, :users
   def initialize(path=nil)
     @server = TCPServer.open(4000)  # Socket to listen on port 2000
+    @users = []
     # locate the user text file at path
     User.filepath = path
     if User.file_usable?
@@ -27,14 +28,19 @@ class Server
         c1 = @server.accept
         $app.para "Client connected!"
         un = c1.gets
-        @new_user = User.new(un)
+        @new_user = User.new(un, c1)
         @new_user.save
-        c1.puts "ls"
-        result = c1.gets
-        $app.para result
-        c1.close
+        @users << @new_user
       }
     end
+  end
+
+  def list_files(index)
+    client = @users[index]
+    client.socket.puts "ls"
+    result = client.socket.gets
+    $app.para result
+    client.socket.close
   end
 end
 
@@ -44,12 +50,17 @@ $app = Shoes.app(:width => 256) do
     server = Server.new("users.txt")
     users_list = stack do
       users = User.users_list
-      check_user = []
+      @check_user = []
       i = 0
-      debug users
       for user in users
-        check_user[i] = button user
+        @check_user[i] = button user
         i += 1
+      end
+    end
+    (0..@check_user.length-1).each do |i|
+      @check_user[i].click do
+        debug i
+        server.list_files(i)
       end
     end
     server.accepting
