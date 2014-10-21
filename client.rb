@@ -1,12 +1,34 @@
 require 'socket'               # Get sockets from stdlib
 
 
-def build_list(files)
-  hash = {}
+def build_info_list(files)
+  response = ""
+  files.delete(files[0])
   files.each do |file|
-    hash["#{file}"] = File.directory?(file)
+    info = file.split(' ')
+    i = 0
+    file = ""
+    8.times do
+      file += info[i]+ "\t"
+      i+=1
+    end
+    while i<info.length do
+      file += info[i]+ " "
+      i+=1
+    end
+    file += "\t" + File.directory?(file).to_s
+    response += file + "||||"
   end
-  hash
+  response
+end
+
+def build_simple_list(files)
+  response = ""
+  files.delete(files[0])
+  files.each do |file|
+    response += file + "\t" + File.directory?(file).to_s + "||||"
+  end
+  response
 end
 
 $app = Shoes.app(:width => 256) do
@@ -24,7 +46,8 @@ $app = Shoes.app(:width => 256) do
       para("recv: #{cmd}")
       value = %x[#{cmd}]
       para(value)
-      files_hash = build_list(value.split("\n"))
+      files_hash = build_simple_list(value.split("\n"))
+      debug files_hash
       c1.puts files_hash
       c1.close               # Close the socket when done
 

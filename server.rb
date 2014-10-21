@@ -35,11 +35,43 @@ class Server
     end
   end
 
+  def build_files_with_info(result)
+    files = result.split("||||")
+    $app.stack do
+    files.each do |f|
+      file = f.split("\t")
+      $app.flow do
+        $app.para file[8]
+        if file.last=="true"
+          $app.button "open"
+        end
+        $app.button "download"
+      end
+    end
+    end
+  end
+
+  def build_files(result)
+    files = result.split("||||")
+    $app.stack do
+    files.each do |f|
+      file = f.split("\t")
+      $app.flow do
+        $app.para file[0]
+        if file.last=="true"
+          $app.button "open"
+        end
+        $app.button "download"
+      end
+    end
+    end
+  end
+
   def list_files(index)
     client = @users[index]
     client.socket.puts "ls"
     result = client.socket.gets
-    $app.para result
+    build_files(result)
     client.socket.close
   end
 end
