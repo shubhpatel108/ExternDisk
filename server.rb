@@ -61,7 +61,10 @@ class Server
         if file.last=="true"
           $app.button "open"
         end
-        $app.button "download"
+        $app.button "download" do
+          save_path = $app.ask_save_file
+          $app.para save_path
+        end
       end
     end
     end
