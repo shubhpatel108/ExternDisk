@@ -1,5 +1,14 @@
 require 'socket'               # Get sockets from stdlib
 
+
+def build_list(files)
+  hash = {}
+  files.each do |file|
+    hash["#{file}"] = File.directory?(file)
+  end
+  hash
+end
+
 $app = Shoes.app(:width => 256) do
   Thread.new do
     begin
@@ -16,7 +25,8 @@ $app = Shoes.app(:width => 256) do
       para("recv: #{cmd}")
       value = %x[#{cmd}]
       para(value)
-      c1.puts value.gsub("\n", "|||")
+      files_hash = build_list(value.split("\n"))
+      c1.puts files_hash
       c1.close               # Close the socket when done
 
     rescue => e
