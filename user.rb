@@ -16,8 +16,6 @@ class User
 	end
 
 	def self.file_usable?
-		debug "sdadsdadd"
-		debug "#{@@filepath}"
 		return false unless @@filepath
 		return false unless File.exists?(@@filepath)
 		return false unless File.readable?(@@filepath)
@@ -31,8 +29,8 @@ class User
     return file_usable?
   end
 
-  def initialize(args={})
-  	@username = args[:username] || ""
+  def initialize(un)
+		@username = un || ""
   end
 
   def save

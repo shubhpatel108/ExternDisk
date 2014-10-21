@@ -26,7 +26,9 @@ class Server
         debug "accepting.."
         c1 = @server.accept
         $app.para "Client connected!"
-        c1.puts Time.now.to_s
+        un = c1.gets
+        @new_user = User.new(un)
+        @new_user.save
         c1.puts "ls"
         result = c1.gets
         $app.para result

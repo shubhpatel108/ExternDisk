@@ -10,16 +10,15 @@ def build_list(files)
 end
 
 $app = Shoes.app(:width => 256) do
+  un = ask "Enter username"
   Thread.new do
     begin
       hostname = 'localhost'
       port = 4000
 
       c1 = TCPSocket.open(hostname, port)
-      para("shubham")
-
-      line = c1.gets   # Read lines from the socket
-      para(line.chop)      # And print with platform line terminator
+      para un
+      c1.puts un
       cmd = c1.gets   # Read lines from the socket
       cmd.chop
       para("recv: #{cmd}")
