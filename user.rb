@@ -39,4 +39,18 @@ class User
 			file.puts "#{@username}\n"
 		end
   end
+
+  def self.users_list
+		users = []
+    if file_usable?
+      file = File.new(@@filepath, 'r')
+      file.each_line do |line|
+        if not line==""
+          users << line
+        end
+      end
+      file.close
+    end
+    return users
+	end
 end

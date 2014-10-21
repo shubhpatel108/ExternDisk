@@ -42,6 +42,16 @@ $app = Shoes.app(:width => 256) do
   Thread.new do
     begin
     server = Server.new("users.txt")
+    users_list = stack do
+      users = User.users_list
+      check_user = []
+      i = 0
+      debug users
+      for user in users
+        check_user[i] = button user
+        i += 1
+      end
+    end
     server.accepting
     rescue => e
       error(e.to_s)
