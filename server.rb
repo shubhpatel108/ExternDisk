@@ -1,25 +1,46 @@
 require 'socket'               # Get sockets from stdlib
+require 'user.rb'
+APP_ROOT = File.dirname(__FILE__)
+
+class Server
+  attr_accessor :server
+  def initialize(path=nil)
+    @server = TCPServer.open(4000)  # Socket to listen on port 2000
+    # locate the user text file at path
+    User.filepath = path
+    if User.file_usable?
+      debug "Found users file."
+    # or create a new file
+    elsif User.create_file
+      debug "Created users file."
+    # exit if create fails
+    else
+      puts "Exiting.\n\n"
+      exit!
+    end
+  end
+
+  def accepting
+    Thread.new do
+      loop {                         # Servers run forever
+        debug "accepting.."
+        c1 = @server.accept
+        $app.para "Client connected!"
+        c1.puts Time.now.to_s
+        c1.puts "ls"
+        result = c1.gets
+        $app.para result
+        c1.close
+      }
+    end
+  end
+end
 
 $app = Shoes.app(:width => 256) do
   Thread.new do
     begin
-    c2 = TCPServer.open(4000)  # Socket to listen on port 2000
-    loop {                         # Servers run forever
-      c1 = c2.accept
-      para("Client connected!")
-      para(Time.now.to_s)
-      c1.puts Time.now.to_s
-      c1.puts "ls"
-      result = c1.gets
-      para result
-      # while line = c1.recv(1024)
-      #   $app.simple_para( "Recevied: " + line.chop)
-      #   # value = %x[#{line}]
-      #   # c1.write value.gsub("\n", "|||")
-      #   # $app.simple_para( "Result was sent!")
-      # end
-      c1.close                 # Disconnect from the client
-    }
+    server = Server.new("users.txt")
+    server.accepting
     rescue => e
       error(e.to_s)
     end
