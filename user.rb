@@ -1,7 +1,7 @@
 class User
 	@@filepath = nil
 
-	attr_accessor :username, :socket
+	attr_accessor :username, :socket, :files, :last_id
 
 	def self.filepath=(path=nil)
 		@@filepath = File.join(APP_ROOT, path)
@@ -32,13 +32,14 @@ class User
   def initialize(un, sock)
 		@username = un || ""
 		@socket = sock || nil
+		@files = []
   end
 
   def save
   	return false unless User.file_usable?
 		return User.exists?
 		File.open(@@filepath, "a") do |file|
-			file.puts "#{@username}\n"
+			file.puts "#{@username}\t#{files.to_s}\t#{last_id}"
 		end
   end
 
@@ -65,4 +66,68 @@ class User
 		end
 		return false
 	end
+
+	def get_ls_response(path)
+		result = socket.puts "ls " + path
+		parse_ls_response(path, result)
+	end
+
+	def parse_ls_response(path, result)
+    files = result.split("||||")
+    files.each do |f|
+	    file = f.split("\t")
+	    if file.last == "ture"
+	    	add_dir(path, file[0])
+	    else
+	    	add_file(path, file[0])
+	    end
+    end
+  end
+
+  def add_dir(path, name)
+  	hash = {:id => last_id + 1, :name => name, :is_dir => true :list => false}
+  	last_id += 1
+  	dirs = path.split('/')
+  	victim_level = @files
+		i = 0
+		counter = 1;
+  	while i<victim_level.length and counter < dirs.length
+			f = victim_level[i]
+			if f[:name]=="#{dirs[counter]}" and f[:is_dir]==true
+				victim_level = victim_level[i].list
+				i=0
+				counter +=1
+			else
+				i+=1
+			end
+  	end
+
+  	victim_level << hash
+  	self.save
+  	victim_level
+  end
+
+	def add_file(path, name)
+		hash = {:id => last_id + 1, :name => name, :is_dir => false}
+  	last_id += 1
+  	dirs = path.split('/')
+  	victim_level = @files
+		i = 0
+		counter = 1;
+  	while i<victim_level.length and counter < dirs.length
+			f = victim_level[i]
+			if f[:name]=="#{dirs[counter]}"
+				victim_level = victim_level[i].list
+				i=0
+				counter +=1
+			else
+				i+=1
+			end
+  	end
+
+  	victim_level << hash
+  	self.save
+  	victim_level
+	end
+
 end
