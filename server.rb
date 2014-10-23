@@ -53,19 +53,21 @@ class Server
 
   def build_files(result)
     files = result.split("||||")
-    $app.stack do
+    $app.window do
+    stack do
     files.each do |f|
       file = f.split("\t")
-      $app.flow do
-        $app.para file[0]
+      flow do
+        para file[0]
         if file.last=="true"
-          $app.button "open"
+          button "open"
         end
-        $app.button "download" do
-          save_path = $app.ask_save_file
-          $app.para save_path
+        button "download" do
+          save_path = ask_save_file
+          para save_path
         end
       end
+    end
     end
     end
   end
@@ -94,7 +96,6 @@ $app = Shoes.app(:width => 256) do
     end
     (0..@check_user.length-1).each do |i|
       @check_user[i].click do
-        debug i
         server.list_files(i)
       end
     end
