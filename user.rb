@@ -1,7 +1,7 @@
 class User
 	@@filepath = nil
 
-	attr_accessor :username, :socket, :files, :last_id
+	attr_accessor :username, :socket, :files, :last_id, :ethaddr
 
 	def self.filepath=(path=nil)
 		@@filepath = File.join(APP_ROOT, path)
@@ -39,7 +39,7 @@ class User
   	return false unless User.file_usable?
 		return User.exists?
 		File.open(@@filepath, "a") do |file|
-			file.puts "#{@username}\t#{files.to_s}\t#{last_id}"
+			file.puts "#{@username}\t#{@ethaddr}\t#{files.to_s}\t#{last_id}"
 		end
   end
 
@@ -108,10 +108,10 @@ class User
   end
 
 	def add_file(path, name)
-		hash = {:id => last_id + 1, :name => name, :is_dir => false}
-  	last_id += 1
-  	dirs = path.split('/')
-  	victim_level = @files
+		hash = {:id => @last_id + 1, :name => name, :is_dir => false}
+		@last_id += 1
+		dirs = path.split('/')
+		victim_level = @files
 		i = 0
 		counter = 1;
   	while i<victim_level.length and counter < dirs.length
@@ -130,4 +130,12 @@ class User
   	victim_level
 	end
 
+	def getethaddr
+		cmd = "ifconfig"
+		value = %x[#{cmd}]
+		line = value.split("\n")[0]
+		eadr = line.slice(line.length-19..line.length)
+		@ethraddr = eadr
+		self.save
+	end
 end
