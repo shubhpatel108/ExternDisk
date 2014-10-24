@@ -70,6 +70,8 @@ class Server
       puts "Exiting.\n\n"
       exit!
     end
+
+    connect_to_peer_servers
   end
 
   def accepting
@@ -167,6 +169,35 @@ class Server
     build_files(result)
     client.socket.close
   end
+
+  def connect_to_peer_servers
+    peers = get_peers
+    ips = peers.map {|p| p[:ip]}
+    for ip in ips
+      begin
+        socket = TCPSocket.open(ip, 4000)
+        debug "connection accepted by: " + ip
+      rescue Exception => e
+        debug "connection refused by: " + ip
+      end
+    end
+  end
+
+  def get_peers
+    command = "arp -a"
+    value = %x[#{command}]
+    peers = []
+    lines = value.split("\n")
+    for line in lines
+      tokens = line.split(/[\s()]/)
+      peer = {:ip => tokens[2], :ethadr => tokens[5]}
+      peers << peer
+    end
+    #for now include self as other client
+    peers << {:ip => "localhost", :ethadr => "00:26:6c:e2:56:d8"}
+    return peers
+  end
+
 end
 
 $app = Shoes.app(:width => 256) do
