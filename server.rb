@@ -1,5 +1,6 @@
 require 'socket'               # Get sockets from stdlib
 require 'user.rb'
+
 APP_ROOT = File.dirname(__FILE__)
 
 class Server
@@ -175,8 +176,10 @@ class Server
     ips = peers.map {|p| p[:ip]}
     for ip in ips
       begin
-        socket = TCPSocket.open(ip, 4000)
-        debug "connection accepted by: " + ip
+        t = Thread.new do
+          socket = TCPSocket.open(ip, 4000)
+          debug "connection accepted by: " + ip
+        end
       rescue Exception => e
         debug "connection refused by: " + ip
       end
