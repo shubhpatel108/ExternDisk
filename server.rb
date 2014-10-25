@@ -4,7 +4,7 @@ require 'user.rb'
 APP_ROOT = File.dirname(__FILE__)
 
 class Server
-  attr_accessor :server, :users, :last_id, :files_list
+  attr_accessor :server, :users, :last_id, :files_list, :peer_servers
   @@file_list_path = nil
   @@ignore_list_path = nil
   @@permission_file_path = nil
@@ -59,19 +59,22 @@ class Server
     @server = TCPServer.open(4000)  # Socket to listen on port 2000
     @users = []
     @last_id = 0
-    @files_list = []
+    @ids = {}
+    @peer_servers = []
     # locate the user text file at path
     Server.file_list_path = path
     Server.ignore_list_path = ignore_path
     Server.permission_file_path = permission_file_path
     if Server.file_usable?(@@file_list_path)
+      build_ids
       debug "Found files list."
     # or create a new file
     elsif Server.create_file(@@file_list_path)
       response = execute_command("ls /home/")
       parse_ls_response("/home/", response.split("\n"))
-      response = execute_command("ls /media/")
-      parse_ls_response("/media/", response.split("\n"))
+      # response = execute_command("ls /media/")
+      # parse_ls_response("/media/", response.split("\n"))
+      build_ids
     # exit if create fails
     else
       puts "Exiting.\n\n"
@@ -88,7 +91,16 @@ class Server
       exit!
     end
 
-    connect_to_peer_servers
+    accepting
+  end
+
+  def build_ids
+    @ids = {}
+    files = File.open(@@file_list_path, "r")
+    files = files.read.split("\n")
+    for file in files
+      @ids.merge!("#{file[3]}" => "#{file[0]}")
+    end
   end
 
   def accepting
@@ -97,12 +109,101 @@ class Server
         debug "accepting.."
         c1 = @server.accept
         $app.para "Client connected!"
-        un = c1.gets
-        @new_user = User.new(un, c1)
-        @new_user.save
+        c1.puts("code|getethaddr")
+        eth = c1.gets
+        c1.puts("code|whoareyou")
+        identity = c1.gets
+        c1.puts(reveal_identity)
+        @new_user = User.new(identity, c1, eth)
+        # @new_user.save
         @users << @new_user
+        start_serving(socket)
       }
     end
+  end
+
+  def start_serving(socket)
+    @global_permissions = []
+    for user in @users
+      Thread.now do
+        if File.exists?("#{user.username}_permission_file.txt")
+          @global_permissions << get_individual_permissions(user)
+        else
+          Server.create_file("#{user.username}_permission_file.txt")
+          ask_for_default_permission(user)
+          @global_permissions << get_individual_permissions(user)
+        end
+        loop {
+          request = socket.gets
+          if request.start_with?("browse_")
+            return_content_of(user, request.split("_")[1])
+          elsif request.start_with?("download_")
+            #FTP
+          end
+          #take request for browsing or downloading
+        }
+      end
+    end
+  end
+
+  def return_content_of(user, filename)
+    file_id = @ids["#{filename}"]
+    if file_id.nil?
+      return ""
+    else
+      result = ""
+      fnames = @ids.keys
+      for f in fnames
+        if filename.include?(f) and filename!=f
+          if permitted(user, f)
+            result += f + "|||"
+          else
+            return ""
+          end
+        end
+      end
+      return result
+    end
+  end
+
+  def permitted(user, filename)
+    permission = @global_permissions[@users.index(user)]
+    if permission["#{filename}"]
+      return true
+    elsif parent=parent(filename)
+      permitted(user,parent)
+    else
+      return false
+    end
+  end
+
+  def parent(filename)
+    paths = filename.split("/")
+    parent = paths.delete(paths.last).join("/") + "/"
+    if not @ids[parent].nil?
+      return parent
+    else
+      return false
+    end
+  end
+
+  def get_individual_permissions(user)
+    file = File.open("#{user.username}_permission_file")
+    files = file.read.split("\n")
+    hash = []
+    files.each do |f|
+      toks = f.split("\t")
+      bool = false
+      bool = true if toks=="true"
+      hash << {"#{toks[0]}" => bool}
+    end
+    return hash
+  end
+
+  def reveal_identity
+    username = execute_command("whoami")
+    hostname = execute_command("hostname")
+    return username + "@" + hostname
   end
 
   def build_files_with_info(result)
@@ -192,8 +293,15 @@ class Server
     ips = peers.map {|p| p[:ip]}
     for ip in ips
       begin
-        t = Thread.new do
+        t = Thread.new($app) do
           socket = TCPSocket.open(ip, 4000)
+          req = socket.gets
+          socket.puts User.execute_command(req.split("|")[1])
+          req = socket.gets
+          socket.puts User.execute_command(req.split("|")[1])
+          server_identity = socket.puts
+          ps = PeerServer.new(server_identity, socket)
+          self.peer_servers << ps
           debug "connection accepted by: " + ip
         end
       rescue Exception => e
@@ -217,14 +325,19 @@ class Server
     return peers
   end
 
-  def ask_for_default_permission
+  def ask_for_default_permission(user=nil)
     @win1 = $app.window {}
+    @win1.para "Please select view for #{user.username}" if not user.nil?
     files_to_show = files_at_depth("2", "")
     @stk1 = @win1.stack {}
     @win1.append {
       @win1.button "Done" do
         @win1.close
-        write_default_permissions
+        if user.nil?
+          write_default_permissions
+        else
+          write_permissions_for(user)
+        end
       end
     }
     @global_stk_hash = {}
@@ -335,27 +448,47 @@ class Server
     df.close
   end
 
+  def write_permissions_for(user)
+    df = File.open("#{user.username}_permission_file.txt", "w")
+    @permission.each do |id, value|
+      df.puts "#{id}\t#{value}\n"
+    end
+    df.close
+  end
+
+  def execute_code(socket, code)
+    code = sock.gets
+    case code
+    when "getethaddr"
+      getethaddr
+      socket.puts @ethraddr
+    when "whoareyou"
+      identity = reveal_identity
+      socket.puts identity
+    end
+  end
+
 end
 
 $app = Shoes.app(:width => 256) do
   Thread.new do
     begin
     server = Server.new("file_list.txt", "ignore_list.txt", "permission_file.txt")
-    users_list = stack do
-      users = User.users_list
-      @check_user = []
-      i = 0
-      for user in users
-        @check_user[i] = button user
-        i += 1
-      end
-    end
-    (0..@check_user.length-1).each do |i|
-      @check_user[i].click do
-        server.list_files(i)
-      end
-    end
-    server.accepting
+    # server.connect_to_peer_servers
+
+    # users_list = stack do
+    #   @check_user = []
+    #   i = 0
+    #   for user in @users
+    #     @check_user[i] = button user.username
+    #     i += 1
+    #   end
+    # end
+    # (0..@check_user.length-1).each do |i|
+    #   @check_user[i].click do
+    #     server.list_files(i)
+    #   end
+    # end
     rescue => e
       error(e.to_s)
     end
