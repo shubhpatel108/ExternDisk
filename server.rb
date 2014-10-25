@@ -251,7 +251,7 @@ class Server
         @flw1 = @global_stk_hash["#{id}"].flow {}
         @global_flw_hash.merge!("#{tokens[0]}" => @flw1)
         @global_flw_hash["#{tokens[0]}"].append do
-          @global_flw_hash["#{tokens[0]}"].para tokens[3]
+          @global_flw_hash["#{tokens[0]}"].para tokens[3].gsub(path, "")
           if tokens[2]=="true"
             @global_flw_hash["#{tokens[0]}"].button "expand" do
               @global_stk_hash["#{tokens[0]}"].toggle
