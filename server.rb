@@ -7,6 +7,7 @@ class Server
   attr_accessor :server, :users, :last_id, :files_list
   @@file_list_path = nil
   @@ignore_list_path = nil
+  @@permission_file_path = nil
 
   def self.file_list_path=(path=nil)
     @@file_list_path = File.join(APP_ROOT, path)
@@ -16,19 +17,23 @@ class Server
     @@ignore_list_path = File.join(APP_ROOT, path)
   end
 
-  def self.file_exists?
-    if @@file_list_path and File.exists?(@@file_list_path)
+  def self.permission_file_path=(path=nil)
+    @@permission_file_path = File.join(APP_ROOT, path)
+  end
+
+  def self.file_exists?(path)
+    if path and File.exists?(path)
       return true
     else
       return false
     end
   end
 
-  def self.file_usable?
-    return false unless @@file_list_path
-    return false unless File.exists?(@@file_list_path)
-    return false unless File.readable?(@@file_list_path)
-    return false unless File.writable?(@@file_list_path)
+  def self.file_usable?(path)
+    return false unless path
+    return false unless File.exists?(path)
+    return false unless File.readable?(path)
+    return false unless File.writable?(path)
     return true
   end
 
@@ -37,10 +42,10 @@ class Server
     value
   end
 
-  def self.create_file
+  def self.create_file(path)
     # create the restaurant file
-    File.open(@@file_list_path, 'w') unless file_exists?
-    return file_usable?
+    File.open(path, 'w') unless file_exists?(path)
+    return file_usable?(path)
   end
 
   def save_listing
@@ -50,7 +55,7 @@ class Server
     end
   end
 
-  def initialize(path=nil, ignore_path=nil)
+  def initialize(path=nil, ignore_path=nil, permission_file_path=nil)
     @server = TCPServer.open(4000)  # Socket to listen on port 2000
     @users = []
     @last_id = 0
@@ -58,15 +63,26 @@ class Server
     # locate the user text file at path
     Server.file_list_path = path
     Server.ignore_list_path = ignore_path
-    if Server.file_usable?
+    Server.permission_file_path = permission_file_path
+    if Server.file_usable?(@@file_list_path)
       debug "Found files list."
     # or create a new file
-    elsif Server.create_file
+    elsif Server.create_file(@@file_list_path)
       response = execute_command("ls /home/")
       parse_ls_response("/home/", response.split("\n"))
       response = execute_command("ls /media/")
       parse_ls_response("/media/", response.split("\n"))
     # exit if create fails
+    else
+      puts "Exiting.\n\n"
+      exit!
+    end
+
+    if Server.file_usable?(@@permission_file_path)
+      debug "Found files list."
+    # or create a new file
+    elsif Server.create_file(@@permission_file_path)
+      ask_for_default_permission
     else
       puts "Exiting.\n\n"
       exit!
@@ -201,12 +217,75 @@ class Server
     return peers
   end
 
+  def ask_for_default_permission
+    @win1 = $app.window {}
+    files_to_show = files_at_depth("2", "")
+    @stk1 = @win1.stack {}
+    @global_flw_hash = {}
+    @stk1.append do
+      files_to_show.each do |f|
+        tokens = f.split("\t")
+        @flw1 = @stk1.flow {}
+        @flw1.append do
+          @flw1.para tokens[3]
+          @global_flw_hash.merge!("#{tokens[0]}" => @flw1)
+          if tokens[2]=="true"
+            @flw1.button "expand" do
+              append_list(tokens[0], (tokens[1].to_i + 1).to_s, tokens[3])
+            end
+          end
+        end
+      end
+    end
+  end
+
+  def append_list(id, depth, path)
+    files_to_show = files_at_depth(depth, path)
+    flw = @global_flw_hash["#{id}"]
+    @stk1 = flw.stack {}
+    @stk1.append do
+      files_to_show.each do |f|
+        tokens = f.split("\t")
+        @flw1 = @stk1.flow {}
+        @flw1.append do
+          @flw1.para tokens[3]
+          @global_flw_hash.merge!("#{tokens[0]}" => @flw1)
+          if tokens[2]=="true"
+            @flw1.button "expand" do
+              append_list(tokens[0], (tokens[1].to_i + 1).to_s, tokens[3])
+            end
+          end
+        end
+      end
+    end
+  end
+
+  def files_at_depth(depth, path)
+    string_comp = true
+    string_comp = false if path==""
+    file = File.open(@@file_list_path, "r")
+    files = file.read.split("\n")
+    files_to_show = []
+    for ff in files
+      f = ff.split("\t")
+      dp = f[1]
+      name = f[3]
+      if dp==depth and string_comp and name.start_with?("#{path}")
+        files_to_show << ff
+      elsif dp==depth and not string_comp
+        files_to_show << ff
+      end
+    end
+    file.close
+    files_to_show
+  end
+
 end
 
 $app = Shoes.app(:width => 256) do
   Thread.new do
     begin
-    server = Server.new("file_list.txt", "ignore_list.txt")
+    server = Server.new("file_list.txt", "ignore_list.txt", "permission_file.xls")
     users_list = stack do
       users = User.users_list
       @check_user = []
