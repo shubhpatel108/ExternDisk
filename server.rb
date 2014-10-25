@@ -221,18 +221,22 @@ class Server
     @win1 = $app.window {}
     files_to_show = files_at_depth("2", "")
     @stk1 = @win1.stack {}
+    @global_stk_hash = {}
     @global_flw_hash = {}
     @stk1.append do
       files_to_show.each do |f|
         tokens = f.split("\t")
         @flw1 = @stk1.flow {}
-        @flw1.append do
-          @flw1.para tokens[3]
-          @global_flw_hash.merge!("#{tokens[0]}" => @flw1)
+        @global_flw_hash.merge!("#{tokens[0]}" => @flw1)
+        @global_flw_hash["#{tokens[0]}"].append do
+          @global_flw_hash["#{tokens[0]}"].para tokens[3]
           if tokens[2]=="true"
-            @flw1.button "expand" do
-              append_list(tokens[0], (tokens[1].to_i + 1).to_s, tokens[3])
+            @global_flw_hash["#{tokens[0]}"].button "expand" do
+              @global_stk_hash["#{tokens[0]}"].toggle
             end
+            @stk2 = @global_flw_hash["#{tokens[0]}"].stack(:hidden => true) {}
+            @global_stk_hash.merge!("#{tokens[0]}" => @stk2)
+            append_list(tokens[0], (tokens[1].to_i + 1).to_s, tokens[3])
           end
         end
       end
@@ -241,19 +245,20 @@ class Server
 
   def append_list(id, depth, path)
     files_to_show = files_at_depth(depth, path)
-    flw = @global_flw_hash["#{id}"]
-    @stk1 = flw.stack {}
-    @stk1.append do
+    @global_stk_hash["#{id}"].append do
       files_to_show.each do |f|
         tokens = f.split("\t")
-        @flw1 = @stk1.flow {}
-        @flw1.append do
-          @flw1.para tokens[3]
-          @global_flw_hash.merge!("#{tokens[0]}" => @flw1)
+        @flw1 = @global_stk_hash["#{id}"].flow {}
+        @global_flw_hash.merge!("#{tokens[0]}" => @flw1)
+        @global_flw_hash["#{tokens[0]}"].append do
+          @global_flw_hash["#{tokens[0]}"].para tokens[3]
           if tokens[2]=="true"
-            @flw1.button "expand" do
-              append_list(tokens[0], (tokens[1].to_i + 1).to_s, tokens[3])
+            @global_flw_hash["#{tokens[0]}"].button "expand" do
+              @global_stk_hash["#{tokens[0]}"].toggle
             end
+            @stk2 = @global_flw_hash["#{tokens[0]}"].stack(:hidden => true) {}
+            @global_stk_hash.merge!("#{tokens[0]}" => @stk2)
+            append_list(tokens[0], (tokens[1].to_i + 1).to_s, tokens[3])
           end
         end
       end
