@@ -221,14 +221,39 @@ class Server
     @win1 = $app.window {}
     files_to_show = files_at_depth("2", "")
     @stk1 = @win1.stack {}
+    @win1.append {
+      @win1.button "Done" do
+        @win1.close
+        write_default_permissions
+      end
+    }
     @global_stk_hash = {}
     @global_flw_hash = {}
+    @global_check = {}
+    @permission = {}
     @stk1.append do
       files_to_show.each do |f|
         tokens = f.split("\t")
         @flw1 = @stk1.flow {}
         @global_flw_hash.merge!("#{tokens[0]}" => @flw1)
         @global_flw_hash["#{tokens[0]}"].append do
+
+          chk = @global_flw_hash["#{tokens[0]}"].check
+          @global_check.merge!("#{tokens[0]}" => chk)
+          @global_check["#{tokens[0]}"].click() do
+            if @global_check["#{tokens[0]}"].checked?
+              @permission.merge!("#{tokens[0]}" => true)
+              @global_check.each do |key,value|
+                if key.start_with?("#{tokens[0]}_") then @global_check[key].checked = true end
+              end
+            else not @global_check["#{tokens[0]}"].checked?
+              @permission.merge!("#{tokens[0]}" => false)
+              @global_check.each do |key,value|
+                if key.start_with?("#{tokens[0]}_") then @global_check[key].checked = false end
+              end
+            end
+          end
+
           @global_flw_hash["#{tokens[0]}"].para tokens[3]
           if tokens[2]=="true"
             @global_flw_hash["#{tokens[0]}"].button "expand" do
@@ -251,6 +276,23 @@ class Server
         @flw1 = @global_stk_hash["#{id}"].flow {}
         @global_flw_hash.merge!("#{tokens[0]}" => @flw1)
         @global_flw_hash["#{tokens[0]}"].append do
+
+          chk = @global_flw_hash["#{tokens[0]}"].check
+          @global_check.merge!("#{id}_#{tokens[0]}" => chk)
+          @global_check["#{id}_#{tokens[0]}"].click() do
+            if @global_check["#{id}_#{tokens[0]}"].checked?
+              @permission.merge!("#{tokens[0]}" => true)
+              @global_check.each do |key,value|
+                if key.start_with?("#{tokens[0]}_") then @global_check[key].checked = true end
+              end
+            else not @global_check["#{id}_#{tokens[0]}"].checked?
+              @permission.merge!("#{tokens[0]}" => false)
+              @global_check.each do |key,value|
+                if key.start_with?("#{tokens[0]}_") then @global_check[key].checked = false end
+              end
+            end
+          end
+
           @global_flw_hash["#{tokens[0]}"].para tokens[3].gsub(path, "")
           if tokens[2]=="true"
             @global_flw_hash["#{tokens[0]}"].button "expand" do
@@ -285,12 +327,20 @@ class Server
     files_to_show
   end
 
+  def write_default_permissions
+    df = File.open("permission_file.txt", "w")
+    @permission.each do |id, value|
+      df.puts "#{id}\t#{value}\n"
+    end
+    df.close
+  end
+
 end
 
 $app = Shoes.app(:width => 256) do
   Thread.new do
     begin
-    server = Server.new("file_list.txt", "ignore_list.txt", "permission_file.xls")
+    server = Server.new("file_list.txt", "ignore_list.txt", "permission_file.txt")
     users_list = stack do
       users = User.users_list
       @check_user = []
