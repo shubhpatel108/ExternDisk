@@ -101,14 +101,14 @@ class Server
 
   def build_ids
     @ids = {}
-    files = File.open(@@file_list_path, "r")
-    files = files.read.split("\n")
+    files_list = File.open(@@file_list_path, "r")
+    files = files_list.read.split("\n")
     for file in files
       f = file.split("\t")
       @ids.merge!("#{f[3]}" => "#{f[0]}")
       @depths.merge!("#{f[0]}" => "#{f[1]}")
     end
-    files.close
+    files_list.close
   end
 
   def accepting
