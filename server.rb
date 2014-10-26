@@ -139,14 +139,13 @@ class Server
     @global_permissions = []
     for user in @users
       index = @users.index(user)
-      Thread.new(index) do |index|
+      Thread.new(index, user) do |index, user|
         if File.exists?("#{user.username}_permission_file.txt")
           @global_permissions << get_individual_permissions(user)
         elsif Server.create_file("#{user.username}_permission_file.txt")
           ask_for_default_permission(user)
           @global_permissions << get_individual_permissions(user)
         end
-        $app.para "Hello@@"
         loop {
           request = @users[index].socket.gets.chomp
           $app.para request
@@ -154,9 +153,6 @@ class Server
             return "true"
           elsif request=="start_browsing"
             init_files = initial_files(user)
-            $app.para init_files
-            debug "HERE"
-            debug init_files
             return @users[index].socket.puts init_files
           elsif request.start_with?("browse_")
             return @users[index].socket.puts content_of(user, request.split("_")[1])
@@ -170,33 +166,27 @@ class Server
   end
 
   def initial_files(user)
-    files = files_at_depth_2("2", "")
-    i = 0
-    response = ""
-    while i<files.length
-      file = files[i]
-      file_info = file.split("\t")
-      if not permitted(user, file_info[3])
-        file.delete(file)
-      else
-        response += file[3] + ">>>" + file[2] + "|||"
-        i += 1
-      end
-    end
-    return response
+    files = files_at_depth_2("2", "", user)
+    return files
   end
 
-  def files_at_depth_2(depth, path)
+  def files_at_depth_2(depth, path, user)
     string_comp = true
     string_comp = false if path==""
-    files_to_show = []
+    files_to_show = ""
     f_ids = @depths.select {|key,value| value==depth}
+    f_ids = f_ids.keys
     f_names = @ids.select {|key, value| f_ids.include?(value)}
+    f_names = f_names.keys
     for f in f_names
-      if string_comp and f.start_with?("#{path}")
-        files_to_show << f
+      if string_comp and f.start_with?("#{path}") #and permitted(user, f)
+        is_dir = f.end_with?("/")
+        name_dir = f + ">>>" + to_boolean(is_dir) + "|||"
+        files_to_show += name_dir
       elsif not string_comp
-        files_to_show << f
+        is_dir = f.end_with?("/").to_s
+        name_dir = f + ">>>" + is_dir + "|||"
+        files_to_show += name_dir
       end
     end
     return files_to_show
@@ -557,6 +547,10 @@ class Server
       df.puts "#{id}\t#{value}\n"
     end
     df.close
+  end
+
+  def to_boolean(str)
+    str == "true"
   end
 
   def execute_code(socket, code)
