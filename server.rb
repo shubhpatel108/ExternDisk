@@ -63,6 +63,7 @@ class Server
     @ids = {}
     @peer_servers = []
     @permission_windows = {}
+    @access_windows = {}
     # locate the user text file at path
     Server.file_list_path = path
     Server.ignore_list_path = ignore_path
@@ -146,9 +147,9 @@ class Server
           if request=="confirm_listening"
             return "true"
           elsif request=="start_browsing"
-            return initial_files(user)
+            return @users[index].socket.puts initial_files(user)
           elsif request.start_with?("browse_")
-            return content_of(user, request.split("_")[1])
+            return @users[index].socket.puts content_of(user, request.split("_")[1])
           elsif request.start_with?("download_")
             #FTP
           end
@@ -251,12 +252,12 @@ class Server
     end
   end
 
-  def build_files(result)
-    files = result.split("||||")
-    $app.window do
+  def build_files(result, identity)
+    files = result.split("|||")
+    @access_windows[identity].append do
     stack do
     files.each do |f|
-      file = f.split("\t")
+      file = f.split(">>>")
       flow do
         para file[0]
         if file.last=="true"
@@ -333,9 +334,11 @@ class Server
           ps = PeerServer.new(server_identity, socket, local_ip)
           self.peer_servers << ps
           but = $app.button "#{server_identity}" do
-            win = $app.window {}
-            ps.socket.puts "start_browsing"
-            win.para "heelo"
+            Thread.current[:win] = $app.window {}
+            @access_windows.merge!("#{ps.server_identity}" => Thread.current[:win])
+              ps.socket.puts "start_browsing"
+              lss = ps.socket.gets.chomp
+              build_files(lss, ps.server_identity)
               # ps.socket.puts "confirm_listening"
               # while ps.socket.gets.chomp == "true"
           end
