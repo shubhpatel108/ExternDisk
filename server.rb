@@ -181,11 +181,11 @@ class Server
     for f in f_names
       if string_comp and f.start_with?("#{path}") #and permitted(user, f)
         is_dir = f.end_with?("/")
-        name_dir = f + ">>>" + to_boolean(is_dir) + "|||"
+        name_dir = f + ">>>" + to_boolean(is_dir) + ">>>" + @ids[f]
         files_to_show += name_dir
       elsif not string_comp
         is_dir = f.end_with?("/").to_s
-        name_dir = f + ">>>" + is_dir + "|||"
+        name_dir = f + ">>>" + is_dir + ">>>" + @ids[f]
         files_to_show += name_dir
       end
     end
@@ -193,23 +193,9 @@ class Server
   end
 
   def content_of(user, filename)
-    file_id = @ids["#{filename}"]
-    if file_id.nil?
-      return ""
-    else
-      result = ""
-      fnames = @ids.keys
-      for f in fnames
-        if filename.include?(f) and filename!=f
-          if permitted(user, f)
-            result += f + "|||"
-          else
-            return ""
-          end
-        end
-      end
-      return result
-    end
+    id = @ids["#{filename}"]
+    dep = dep[id]
+    files_at_depth_2((depth.to_i+1).to_s, filename)
   end
 
   def permitted(user, filename)
@@ -252,42 +238,64 @@ class Server
     return username.chomp + "@" + hostname.chomp
   end
 
-  def build_files_with_info(result)
-    files = result.split("||||")
-    $app.stack do
-    files.each do |f|
-      file = f.split("\t")
-      $app.flow do
-        $app.para file[8]
-        if file.last=="true"
-          $app.button "open"
+  def build_files(result, identity)
+    @access_windows[identity].append do
+    stk = @access_windows[identity].stack
+    win3 = $app.window {}
+    @access_windows.merge!("#{identity}" => win1)
+    @permission_windows["#{identity}"].para "You are browsing #{identity}"
+    files = result.split("|||")
+
+    @browse_stk_hash = {}
+    @browse_flw_hash = {}
+    @browse_check = {}
+    @permission = {}
+    stk3 = win3.stack {}
+    stk3.append do
+      files_to_show.each do |f|
+        tokens = f.split(">>>")
+        flw3 = stk3.flow {}
+        @browse_flw_hash.merge!("#{tokens[2]}" => flw3)
+        if token[1]=="true"
+          flw3.button "open" do
+            ps.socket.puts "browse_#{tokens[0]}"
+            lss = ps.socket.gets.chomp
+            append_browsing_list(lss, identity, tokens[2])
+          end
+          flw3.button "close" do
+            @browse_stk_hash["#{tokens[2]}"].replace {}
+          end
+          flw3.button "download" do
+            save_path = ask_save_file
+            local_flow.para save_path
+          end
         end
-        $app.button "download"
       end
     end
     end
   end
 
-  def build_files(result, identity)
+  def append_browsing_list(result, identity, id)
+    stk3 = @browse_flw_hash.stack = {}
+    @browse_stk_hash.merge!("#{tokens[2]}" => stk3)
     files = result.split("|||")
-    @access_windows[identity].append do
-    stk = @access_windows[identity].stack
-    stk.append do
-    files.each do |f|
-      file = f.split(">>>")
-      local_flow = stk.flow {}
-      local_flow.append do
-        local_flow.para file[0]
-        if file.last=="true"
-          local_flow.button "open"
-        end
-        local_flow.button "download" do
-          save_path = ask_save_file
-          local_flow.para save_path
+    stk3 = @browse_stk_hash["#{id}"]
+    stk3.append do
+      files_to_show.each do |f|
+        tokens = f.split(">>>")
+        flw3 = stk3.flow {}
+        @browse_flw_hash.merge!("#{tokens[2]}" => flw3)
+        if token[1]=="true"
+          flw3.button "open" do
+            ps.socket.puts "browse_#{tokens[0]}"
+            lss = ps.socket.gets.chomp
+            append_browsing_list(lss, identity, tokens[2])
+          end
+          flw3.button "close" do
+            @browse_stk_hash["#{tokens[2]}"].replace {}
+          end
         end
       end
-    end
-    end
     end
   end
 
