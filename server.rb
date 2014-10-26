@@ -333,7 +333,7 @@ class Server
           server_identity = socket.gets.chomp
           ps = PeerServer.new(server_identity, socket, local_ip)
           self.peer_servers << ps
-          but = $app.button "#{server_identity}" do
+          but = $app.button "#{ps.server_identity}" do
             Thread.current[:win] = $app.window {}
             @access_windows.merge!("#{ps.server_identity}" => Thread.current[:win])
               ps.socket.puts "start_browsing"
