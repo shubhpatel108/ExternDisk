@@ -154,16 +154,23 @@ class Server
           elsif request=="start_browsing"
             init_files = initial_files(user)
             @users[index].socket.puts init_files
-          elsif request.start_with?("browse_")
-            inner_files = content_of(user, request.split("_")[1])
+          elsif request.start_with?("browse>>>")
+            inner_files = content_of(user, request.split(">>>")[1])
             @users[index].socket.puts inner_files
-          elsif request.start_with?("download_")
-            #FTP
+          elsif request.start_with?("download>>>")
+            transfer_file(@users[index], request.split(">>>")[1])
           end
           #take request for browsing or downloading
         }
       end
     end
+  end
+
+  def transfer_file(user, filename)
+    file = File.open(filename)
+    filecontent = file.read
+    user.socket.puts(filecontent)
+    $app.para "complete from SERVER"
   end
 
   def initial_files(user)
@@ -257,7 +264,7 @@ class Server
           if tokens[1]=="true"
             @browse_flw_hash["#{tokens[2]}"].button "open" do
               Thread.new do
-                @peer_servers["#{identity}"].puts "browse_#{tokens[0]}"
+                @peer_servers["#{identity}"].puts "browse>>>#{tokens[0]}"
                 lss = @peer_servers["#{identity}"].gets.chomp
                 append_browsing_list(lss, tokens[2], identity)
               end
@@ -265,9 +272,16 @@ class Server
             @browse_flw_hash["#{tokens[2]}"].button "close" do
               @browse_stk_hash["#{tokens[2]}"].clear()
             end
-            @browse_flw_hash["#{tokens[2]}"].button "download" do
+          end
+          @browse_flw_hash["#{tokens[2]}"].button "download" do
+            Thread.new do
+              $app.para "complete: startin"
+              Thread.current[:data] = @peer_servers["#{identity}"].read
+              $app.para "complete: from client"
               # save_path = ask_save_file
-              # local_flow.para save_path
+              Thread.current[:destFile] = File.open("save_path", "w")
+              Thread.current[:destFile].print Thread.current[:data]
+              Thread.current[:destFile].close
             end
           end
         end
@@ -289,14 +303,26 @@ class Server
           if tokens[1]=="true"
             @browse_flw_hash["#{tokens[2]}"].button "open" do
               Thread.new do
-                @peer_servers["#{identity}"].puts "browse_#{tokens[0]}"
+                @peer_servers["#{identity}"].puts "browse>>>#{tokens[0]}"
                 lss = @peer_servers["#{identity}"].gets.chomp
                 append_browsing_list(lss, tokens[2], identity)
               end
             end
-            flw3.button "close" do
+            @browse_flw_hash["#{tokens[2]}"].button "close" do
               @browse_stk_hash["#{tokens[2]}"].clear()
             end
+          end
+          @browse_flw_hash["#{tokens[2]}"].button "download" do
+            # Thread.new do
+              @peer_servers["#{identity}"].puts "download>>>#{tokens[0]}"
+              $app.para "complete: startin"
+              data = @peer_servers["#{identity}"].read
+              $app.para "complete: from client"
+              # save_path = ask_save_file
+              destFile = File.open("save_path", "w")
+              destFile.print data
+              destFile.close
+            # end
           end
         end
       end
