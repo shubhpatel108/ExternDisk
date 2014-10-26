@@ -333,12 +333,12 @@ class Server
           server_identity = socket.gets.chomp
           ps = PeerServer.new(server_identity, socket, local_ip)
           self.peer_servers << ps
-          but = $app.button "#{ps.server_identity}" do
+          but = $app.button "#{ps.identity}" do
             Thread.current[:win] = $app.window {}
-            @access_windows.merge!("#{ps.server_identity}" => Thread.current[:win])
+            @access_windows.merge!("#{ps.identity}" => Thread.current[:win])
               ps.socket.puts "start_browsing"
               lss = ps.socket.gets.chomp
-              build_files(lss, ps.server_identity)
+              build_files(lss, server_identity)
               # ps.socket.puts "confirm_listening"
               # while ps.socket.gets.chomp == "true"
           end
