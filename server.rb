@@ -376,17 +376,22 @@ class Server
   end
 
   def get_peers
-    command = "arp -a"
+    command = "nmap -sP 10.100.98.*"
     value = %x[#{command}]
     peers = []
     lines = value.split("\n")
+    lines.delete(lines.first)
+    lines.delete(lines.first)
     for line in lines
-      tokens = line.split(/[\s()]/)
-      peer = {:ip => tokens[2], :ethadr => tokens[5]}
+      # tokens = line.split(/[\s()]/)
+      ip = line.split(" ")[4]
+      lines.delete(lines[lines.index(line)])
+      peer = {:ip => ip, :ethadr => "no-ethr"}
+      # peer = {:ip => tokens[2], :ethadr => tokens[5]}
       peers << peer
     end
     #for now include self as other client
-    peers << {:ip => "localhost", :ethadr => "00:26:6c:e2:56:d8"}
+    # peers << {:ip => "localhost", :ethadr => "00:26:6c:e2:56:d8"}
     return peers
   end
 
