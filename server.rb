@@ -62,6 +62,7 @@ class Server
     @last_id = 0
     @ids = {}
     @peer_servers = []
+    @permission_windows = {}
     # locate the user text file at path
     Server.file_list_path = path
     Server.ignore_list_path = ignore_path
@@ -119,28 +120,35 @@ class Server
         @users[index].socket.puts("code|whoareyou")
         identity = @users[index].socket.gets.chomp
         $app.para identity + "@" + eth
+        @users[index].username = identity
+        @users[index].ethaddr = eth
         @users[index].socket.puts(reveal_identity)
+
         # @new_user.save
-        start_serving(socket)
+        start_serving
       }
     end
   end
 
-  def start_serving(socket)
+  def start_serving
     @global_permissions = []
     for user in @users
-      Thread.now do
+      index = @users.index(user)
+      Thread.new do
         if File.exists?("#{user.username}_permission_file.txt")
           @global_permissions << get_individual_permissions(user)
-        else
-          Server.create_file("#{user.username}_permission_file.txt")
+        elsif Server.create_file("#{user.username}_permission_file.txt")
           ask_for_default_permission(user)
           @global_permissions << get_individual_permissions(user)
         end
         loop {
-          request = socket.gets
-          if request.start_with?("browse_")
-            return_content_of(user, request.split("_")[1])
+          request = @users[index].socket.gets.chomp
+          if request=="confirm_listening"
+            return "true"
+          elsif request=="start_browsing"
+            return initial_files(user)
+          elsif request.start_with?("browse_")
+            return content_of(user, request.split("_")[1])
           elsif request.start_with?("download_")
             #FTP
           end
@@ -150,7 +158,24 @@ class Server
     end
   end
 
-  def return_content_of(user, filename)
+  def initial_files(user)
+    files = files_at_depth("2", "")
+    i = 0
+    response = ""
+    while i<files.length
+      file = files[i]
+      file_info = file.split("\t")
+      if not permitted(user, file_info[3])
+        file.delete(file)
+      else
+        response += file[3] + ">>>" + file[2] + "|||"
+        i += 1
+      end
+    end
+    return response
+  end
+
+  def content_of(user, filename)
     file_id = @ids["#{filename}"]
     if file_id.nil?
       return ""
@@ -192,7 +217,7 @@ class Server
   end
 
   def get_individual_permissions(user)
-    file = File.open("#{user.username}_permission_file")
+    file = File.open("#{user.username}_permission_file.txt")
     files = file.read.split("\n")
     hash = []
     files.each do |f|
@@ -293,9 +318,9 @@ class Server
   end
 
   def connect_to_peer_servers
+    @access_files_window = {}
     peers = get_peers
     ips = peers.map {|p| p[:ip]}
-    @access_files_window = {}
     for ip in ips
       begin
         t = Thread.new do
@@ -305,28 +330,25 @@ class Server
           req = socket.gets.chomp
           socket.puts client_execute_code(req.split("|")[1])
           server_identity = socket.gets.chomp
-          ps = PeerServer.new(server_identity, socket)
+          ps = PeerServer.new(server_identity, socket, ip)
           self.peer_servers << ps
           but = $app.button "#{server_identity}" do
-            window = $app.window {}
-            window.append do
-              window.para "FiLe list of #{server_identity}"
-            end
-            @access_files_window.merge!(["#{server_identity}"] => window)
+            win = $app.window {}
+            ps.socket.puts "start_browsing"
+            win.para "heelo"
+              # ps.socket.puts "confirm_listening"
+              # while ps.socket.gets.chomp == "true"
           end
         end
       rescue Exception => e
         debug "connection refused by: " + ip
       end
     end
-    # start_requesting
   end
 
-  def start_requesting
-    for peer in @peer_servers
-      Thread.new do
-        $app.para "now accpeting on.....#{peer.server_identity}"
-      end
+  def start_requesting(peer)
+    Thread.new do
+      $app.para "now accpeting on.....#{peer.identity}"
     end
   end
 
@@ -369,13 +391,14 @@ class Server
   end
 
   def ask_for_default_permission(user=nil)
-    @win1 = $app.window {}
-    @win1.para "Please select view for #{user.username}" if not user.nil?
+    win1 = $app.window {}
+    @permission_windows.merge!("#{user.username}" => win1)
+    @permission_windows["#{user.username}"].para "Please select view for #{user.username}" unless user.nil?
     files_to_show = files_at_depth("2", "")
-    @stk1 = @win1.stack {}
-    @win1.append {
-      @win1.button "Done" do
-        @win1.close
+    @stk1 = win1.stack {}
+    win1.append {
+      win1.button "Done" do
+        win1.close
         if user.nil?
           write_default_permissions
         else
