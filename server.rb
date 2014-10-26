@@ -463,6 +463,7 @@ class Server
               @permission.merge!("#{tokens[0]}" => true)
               @global_check.each do |key,value|
                 if key.start_with?("#{tokens[0]}_") then @global_check[key].checked = true end
+                if key.end_with?("_#{id}") then @global_check[key].checked = true end
               end
             else not @global_check["#{id}_#{tokens[0]}"].checked?
               @permission.merge!("#{tokens[0]}" => false)
