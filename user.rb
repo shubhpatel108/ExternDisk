@@ -1,51 +1,55 @@
 class User
-	@@filepath = nil
+	@@allowed_filepath = nil
 
-	attr_accessor :username, :socket, :files, :last_id, :ethaddr
+	attr_accessor :username, :socket, :allowed_files, :ethaddr
 
-	def self.filepath=(path=nil)
-		@@filepath = File.join(APP_ROOT, path)
+	def self.allowed_filepath=(path=nil)
+		@@allowed_filepath = File.join(APP_ROOT, path)
 	end
 
-	def self.file_exists?
-		if @@filepath and File.exists?(@@filepath)
-			return true
-		else
-			return false
-		end
-	end
-
-	def self.file_usable?
-		return false unless @@filepath
-		return false unless File.exists?(@@filepath)
-		return false unless File.readable?(@@filepath)
-		return false unless File.writable?(@@filepath)
-		return true
-	end
-
-	def self.create_file
-    # create the restaurant file
-    File.open(@@filepath, 'w') unless file_exists?
-    return file_usable?
+  def self.file_exists?(path)
+    if path and File.exists?(path)
+      return true
+    else
+      return false
+    end
   end
 
-  def initialize(un, sock)
-		@username = un || ""
+  def self.file_usable?(path)
+    return false unless path
+    return false unless File.exists?(path)
+    return false unless File.readable?(path)
+    return false unless File.writable?(path)
+    return true
+  end
+
+  def execute_command(cmd="")
+    value = %x[#{cmd}]
+    value
+  end
+
+  def self.create_file(path)
+    # create the restaurant file
+    File.open(path, 'w') unless file_exists?(path)
+    return file_usable?(path)
+  end
+
+  def initialize(sock)
+		# @username = un || ""
 		@socket = sock || nil
-		@files = []
+		# @ethaddr = ethaddr || ""
   end
 
   def save
-  	return false unless User.file_usable?
-		return User.exists?
-		File.open(@@filepath, "a") do |file|
+  	return false unless User.file_usable?(@@allowed_filepath)
+		File.open(@@allowed_filepath, "a") do |file|
 			file.puts "#{@username}\t#{@ethaddr}\t#{files.to_s}\t#{last_id}"
 		end
   end
 
   def self.users_list
 		users = []
-    if file_usable?
+    if file_usable?(@@allowed_filepath)
       file = File.new(@@filepath, 'r')
       file.each_line do |line|
         if not line==""
@@ -55,16 +59,6 @@ class User
       file.close
     end
     return users
-	end
-
-	def self.exists?
-		file = File.new(@@filepath, 'r')
-		file.each_line do |line|
-			if @username == line.chomp.split("\t")[0]
-				return true
-			end
-		end
-		return false
 	end
 
 	def get_ls_response(path)
@@ -85,7 +79,7 @@ class User
   end
 
   def add_dir(path, name)
-  	hash = {:id => last_id + 1, :name => name, :is_dir => true :list => false}
+  	hash = {:id => last_id + 1, :name => name, :is_dir => true, :list => false}
   	last_id += 1
   	dirs = path.split('/')
   	victim_level = @files
@@ -131,11 +125,26 @@ class User
 	end
 
 	def getethaddr
-		cmd = "ifconfig"
-		value = %x[#{cmd}]
+		value = execute_command("ifconfig")
 		line = value.split("\n")[0]
 		eadr = line.slice(line.length-19..line.length)
-		@ethraddr = eadr
-		self.save
+		@ethaddr = eadr
 	end
+
+	def reveal_identity
+		username = execute_command("whoami")
+		hostname = execute_command("hostname")
+		return username + "@" + hostname
+	end
+
+	def self.execute_code(code)
+		case code
+		when "getethaddr"
+			return getethaddr
+		when "whoareyou"
+			identity = reveal_identity
+			return socket.puts identity
+		end
+	end
+
 end
