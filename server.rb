@@ -112,6 +112,16 @@ class Server
   end
 
   def accepting
+    fork do
+      server = TCPServer.open(6000)
+      file = open(filemame, 'r')
+
+      filecontent = file.read
+
+      client.puts(filecontent)
+      client.close
+    end
+    $app.para "complete from SERVER"
     Thread.new do
       loop {                         # Servers run forever
         debug "accepting.."
@@ -167,9 +177,15 @@ class Server
   end
 
   def transfer_file(user, filename)
-    file = File.open(filename)
-    filecontent = file.read
-    user.socket.puts(filecontent)
+    fork do
+      server = TCPServer.open(6000)
+      file = open(filemame, 'r')
+
+      filecontent = file.read
+
+      client.puts(filecontent)
+      client.close
+    end
     $app.para "complete from SERVER"
   end
 
@@ -274,15 +290,18 @@ class Server
             end
           end
           @browse_flw_hash["#{tokens[2]}"].button "download" do
-            Thread.new do
-              $app.para "complete: startin"
-              Thread.current[:data] = @peer_servers["#{identity}"].read
-              $app.para "complete: from client"
-              # save_path = ask_save_file
-              Thread.current[:destFile] = File.open("save_path", "w")
-              Thread.current[:destFile].print Thread.current[:data]
-              Thread.current[:destFile].close
+            sleep(1)
+            $app.timer(1) do
+            fork do
+              $app.para "hello from client"
+              # @peer_servers["#{identity}"].puts "download>>>#{tokens[0]}"
+              # sock = TCPSocket.open("10.100.98.32", 6000)
+              # data = sock.read
+              # destFile = File.open("/home/shubham/CMS.Fundamentals.iso", "w")
+              # destFile.print data
+              # destFile.close
             end
+          end
           end
         end
       end
@@ -313,16 +332,22 @@ class Server
             end
           end
           @browse_flw_hash["#{tokens[2]}"].button "download" do
-            # Thread.new do
-              @peer_servers["#{identity}"].puts "download>>>#{tokens[0]}"
-              $app.para "complete: startin"
-              data = @peer_servers["#{identity}"].read
-              $app.para "complete: from client"
-              # save_path = ask_save_file
-              destFile = File.open("save_path", "w")
-              destFile.print data
-              destFile.close
-            # end
+            sleep(1)
+            $app.timer(1) do
+              $app.para "hello11 from client"
+            Thread.new do
+               # @peer_servers["#{identity}"].puts "download>>>#{tokens[0]}"
+              begin
+                sock = TCPSocket.open("10.100.98.117", 6000)
+              rescue => e
+                $app.para "hello from client #{e}"
+              end
+              # data = sock.read
+              # destFile = File.open("/home/shubham/amu", "w")
+              # destFile.print data
+              # destFile.close
+            end
+            end
           end
         end
       end
