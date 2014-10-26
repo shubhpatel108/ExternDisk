@@ -114,10 +114,10 @@ class Server
   def accepting
     fork do
       server = TCPServer.open(6000)
-      file = open(filemame, 'r')
+      file = open("/home/shubham/ftp.rb", 'r')
 
       filecontent = file.read
-
+      client = server.accept
       client.puts(filecontent)
       client.close
     end
@@ -338,14 +338,14 @@ class Server
             Thread.new do
                # @peer_servers["#{identity}"].puts "download>>>#{tokens[0]}"
               begin
-                sock = TCPSocket.open("10.100.98.117", 6000)
+                sock = TCPSocket.open("10.100.98.32", 6000)
+                data = sock.read
+                destFile = File.open("/home/prashant/amu.rb", "w")
+                destFile.print data
+                destFile.close
               rescue => e
                 $app.para "hello from client #{e}"
               end
-              # data = sock.read
-              # destFile = File.open("/home/shubham/amu", "w")
-              # destFile.print data
-              # destFile.close
             end
             end
           end
