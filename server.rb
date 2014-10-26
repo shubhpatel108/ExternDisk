@@ -57,10 +57,11 @@ class Server
   end
 
   def initialize(path=nil, ignore_path=nil, permission_file_path=nil)
-    @server = TCPServer.open(4000)  # Socket to listen on port 2000
+    @server = TCPServer.open(5000)  # Socket to listen on port 2000
     @users = []
     @last_id = 0
     @ids = {}
+    @depths = {}
     @peer_servers = []
     @permission_windows = {}
     @access_windows = {}
@@ -103,8 +104,11 @@ class Server
     files = File.open(@@file_list_path, "r")
     files = files.read.split("\n")
     for file in files
-      @ids.merge!("#{file[3]}" => "#{file[0]}")
+      f = file.split("\t")
+      @ids.merge!("#{f[3]}" => "#{f[0]}")
+      @depths.merge!("#{f[0]}" => "#{f[1]}")
     end
+    files.close
   end
 
   def accepting
@@ -142,12 +146,18 @@ class Server
           ask_for_default_permission(user)
           @global_permissions << get_individual_permissions(user)
         end
+        $app.para "Hello@@"
         loop {
           request = @users[index].socket.gets.chomp
+          $app.para request
           if request=="confirm_listening"
             return "true"
           elsif request=="start_browsing"
-            return @users[index].socket.puts initial_files(user)
+            init_files = initial_files(user)
+            $app.para init_files
+            debug "HERE"
+            debug init_files
+            return @users[index].socket.puts init_files
           elsif request.start_with?("browse_")
             return @users[index].socket.puts content_of(user, request.split("_")[1])
           elsif request.start_with?("download_")
@@ -160,7 +170,7 @@ class Server
   end
 
   def initial_files(user)
-    files = files_at_depth("2", "")
+    files = files_at_depth_2("2", "")
     i = 0
     response = ""
     while i<files.length
@@ -174,6 +184,22 @@ class Server
       end
     end
     return response
+  end
+
+  def files_at_depth_2(depth, path)
+    string_comp = true
+    string_comp = false if path==""
+    files_to_show = []
+    f_ids = @depths.select {|key,value| value==depth}
+    f_names = @ids.select {|key, value| f_ids.include?(value)}
+    for f in f_names
+      if string_comp and f.start_with?("#{path}")
+        files_to_show << f
+      elsif not string_comp
+        files_to_show << f
+      end
+    end
+    return files_to_show
   end
 
   def content_of(user, filename)
@@ -233,7 +259,7 @@ class Server
   def reveal_identity
     username = execute_command("whoami")
     hostname = execute_command("hostname")
-    return username + "@" + hostname
+    return username.chomp + "@" + hostname.chomp
   end
 
   def build_files_with_info(result)
@@ -327,7 +353,7 @@ class Server
     for ip in ips
       begin
         t = Thread.new(ip) do |local_ip|
-          socket = TCPSocket.open(local_ip, 4000)
+          socket = TCPSocket.open(local_ip, 5000)
           req = socket.gets.chomp
           socket.puts client_execute_code(req.split("|")[1])
           req = socket.gets.chomp
