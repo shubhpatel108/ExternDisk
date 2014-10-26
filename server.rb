@@ -62,7 +62,7 @@ class Server
     @last_id = 0
     @ids = {}
     @depths = {}
-    @peer_servers = []
+    @peer_servers = {}
     @permission_windows = {}
     @access_windows = {}
     # locate the user text file at path
@@ -153,9 +153,10 @@ class Server
             return "true"
           elsif request=="start_browsing"
             init_files = initial_files(user)
-            return @users[index].socket.puts init_files
+            @users[index].socket.puts init_files
           elsif request.start_with?("browse_")
-            return @users[index].socket.puts content_of(user, request.split("_")[1])
+            inner_files = content_of(user, request.split("_")[1])
+            @users[index].socket.puts inner_files
           elsif request.start_with?("download_")
             #FTP
           end
@@ -180,12 +181,12 @@ class Server
     f_names = f_names.keys
     for f in f_names
       if string_comp and f.start_with?("#{path}") #and permitted(user, f)
-        is_dir = f.end_with?("/")
-        name_dir = f + ">>>" + to_boolean(is_dir) + ">>>" + @ids[f]
+        is_dir = f.end_with?("/").to_s
+        name_dir = f + ">>>" + is_dir + ">>>" + @ids[f] + "|||"
         files_to_show += name_dir
       elsif not string_comp
         is_dir = f.end_with?("/").to_s
-        name_dir = f + ">>>" + is_dir + ">>>" + @ids[f]
+        name_dir = f + ">>>" + is_dir + ">>>" + @ids[f] + "|||"
         files_to_show += name_dir
       end
     end
@@ -194,8 +195,8 @@ class Server
 
   def content_of(user, filename)
     id = @ids["#{filename}"]
-    dep = dep[id]
-    files_at_depth_2((depth.to_i+1).to_s, filename)
+    dep = @depths[id]
+    files_at_depth_2((dep.to_i+1).to_s, filename, user)
   end
 
   def permitted(user, filename)
@@ -239,60 +240,63 @@ class Server
   end
 
   def build_files(result, identity)
-    @access_windows[identity].append do
-    stk = @access_windows[identity].stack
     win3 = $app.window {}
-    @access_windows.merge!("#{identity}" => win1)
-    @permission_windows["#{identity}"].para "You are browsing #{identity}"
+    @access_windows.merge!("#{identity}" => win3)
+    @access_windows["#{identity}"].para "You are browsing #{identity}"
     files = result.split("|||")
-
     @browse_stk_hash = {}
     @browse_flw_hash = {}
-    @browse_check = {}
-    @permission = {}
-    stk3 = win3.stack {}
+    stk3 = @access_windows["#{identity}"].stack {}
     stk3.append do
-      files_to_show.each do |f|
+      files.each do |f|
         tokens = f.split(">>>")
         flw3 = stk3.flow {}
         @browse_flw_hash.merge!("#{tokens[2]}" => flw3)
-        if token[1]=="true"
-          flw3.button "open" do
-            ps.socket.puts "browse_#{tokens[0]}"
-            lss = ps.socket.gets.chomp
-            append_browsing_list(lss, identity, tokens[2])
-          end
-          flw3.button "close" do
-            @browse_stk_hash["#{tokens[2]}"].replace {}
-          end
-          flw3.button "download" do
-            save_path = ask_save_file
-            local_flow.para save_path
+        @browse_flw_hash["#{tokens[2]}"].append do
+          @browse_flw_hash["#{tokens[2]}"].para "#{tokens[0]}"
+          if tokens[1]=="true"
+            @browse_flw_hash["#{tokens[2]}"].button "open" do
+              Thread.new do
+                @peer_servers["#{identity}"].puts "browse_#{tokens[0]}"
+                lss = @peer_servers["#{identity}"].gets.chomp
+                append_browsing_list(lss, tokens[2], identity)
+              end
+            end
+            @browse_flw_hash["#{tokens[2]}"].button "close" do
+              @browse_stk_hash["#{tokens[2]}"].clear()
+            end
+            @browse_flw_hash["#{tokens[2]}"].button "download" do
+              # save_path = ask_save_file
+              # local_flow.para save_path
+            end
           end
         end
       end
     end
-    end
   end
 
-  def append_browsing_list(result, identity, id)
-    stk3 = @browse_flw_hash.stack = {}
-    @browse_stk_hash.merge!("#{tokens[2]}" => stk3)
+  def append_browsing_list(result, id, identity )
+    stk4 = @browse_flw_hash["#{id}"].stack {}
+    @browse_stk_hash.merge!("#{id}" => stk4)
     files = result.split("|||")
-    stk3 = @browse_stk_hash["#{id}"]
-    stk3.append do
-      files_to_show.each do |f|
+    @browse_stk_hash["#{id}"].append do
+      files.each do |f|
         tokens = f.split(">>>")
-        flw3 = stk3.flow {}
+        flw3 = @browse_stk_hash["#{id}"].flow {}
         @browse_flw_hash.merge!("#{tokens[2]}" => flw3)
-        if token[1]=="true"
-          flw3.button "open" do
-            ps.socket.puts "browse_#{tokens[0]}"
-            lss = ps.socket.gets.chomp
-            append_browsing_list(lss, identity, tokens[2])
-          end
-          flw3.button "close" do
-            @browse_stk_hash["#{tokens[2]}"].replace {}
+        @browse_flw_hash["#{tokens[2]}"].append do
+          @browse_flw_hash["#{tokens[2]}"].para "#{tokens[0]}"
+          if tokens[1]=="true"
+            @browse_flw_hash["#{tokens[2]}"].button "open" do
+              Thread.new do
+                @peer_servers["#{identity}"].puts "browse_#{tokens[0]}"
+                lss = @peer_servers["#{identity}"].gets.chomp
+                append_browsing_list(lss, tokens[2], identity)
+              end
+            end
+            flw3.button "close" do
+              @browse_stk_hash["#{tokens[2]}"].clear()
+            end
           end
         end
       end
@@ -358,7 +362,7 @@ class Server
           socket.puts client_execute_code(req.split("|")[1])
           server_identity = socket.gets.chomp
           ps = PeerServer.new(server_identity, socket, local_ip)
-          self.peer_servers << ps
+          @peer_servers.merge!("#{server_identity}" => socket) 
           but = $app.button "#{ps.identity}" do
             Thread.current[:win] = $app.window {}
             @access_windows.merge!("#{ps.identity}" => Thread.current[:win])
