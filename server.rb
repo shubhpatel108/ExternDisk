@@ -255,17 +255,19 @@ class Server
   def build_files(result, identity)
     files = result.split("|||")
     @access_windows[identity].append do
-    stack do
+    stk = @access_windows[identity].stack
+    stk.append do
     files.each do |f|
       file = f.split(">>>")
-      flow do
-        para file[0]
+      local_flow = stk.flow {}
+      local_flow.append do
+        local_flow.para file[0]
         if file.last=="true"
-          button "open"
+          local_flow.button "open"
         end
-        button "download" do
+        local_flow.button "download" do
           save_path = ask_save_file
-          para save_path
+          local_flow.para save_path
         end
       end
     end
