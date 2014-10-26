@@ -110,19 +110,19 @@ class Server
     Thread.new do
       loop {                         # Servers run forever
         debug "accepting.."
-        c1 = @server.accept
-        new_user = User.new(c1)
+        Thread.current[:c1] = @server.accept
+        new_user = User.new(Thread.current[:c1])
         @users << new_user
-        index = @users.index(new_user)
+        Thread.current[:index] = @users.index(new_user)
         $app.para "Client connected!"
-        @users[index].socket.puts "code|getethaddr"
-        eth = @users[index].socket.gets.chomp
-        @users[index].socket.puts("code|whoareyou")
-        identity = @users[index].socket.gets.chomp
-        $app.para identity + "@" + eth
-        @users[index].username = identity
-        @users[index].ethaddr = eth
-        @users[index].socket.puts(reveal_identity)
+        @users[Thread.current[:index]].socket.puts "code|getethaddr"
+        Thread.current[:eth] = @users[Thread.current[:index]].socket.gets.chomp
+        @users[Thread.current[:index]].socket.puts("code|whoareyou")
+        Thread.current[:identity] = @users[Thread.current[:index]].socket.gets.chomp
+        $app.para Thread.current[:identity] + "@" + Thread.current[:eth]
+        @users[Thread.current[:index]].username = Thread.current[:identity]
+        @users[Thread.current[:index]].ethaddr = Thread.current[:eth]
+        @users[Thread.current[:index]].socket.puts(reveal_identity)
 
         # @new_user.save
         start_serving
@@ -134,7 +134,7 @@ class Server
     @global_permissions = []
     for user in @users
       index = @users.index(user)
-      Thread.new do
+      Thread.new(index) do |index|
         if File.exists?("#{user.username}_permission_file.txt")
           @global_permissions << get_individual_permissions(user)
         elsif Server.create_file("#{user.username}_permission_file.txt")
@@ -323,14 +323,14 @@ class Server
     ips = peers.map {|p| p[:ip]}
     for ip in ips
       begin
-        t = Thread.new do
-          socket = TCPSocket.open(ip, 4000)
+        t = Thread.new(ip) do |local_ip|
+          socket = TCPSocket.open(local_ip, 4000)
           req = socket.gets.chomp
           socket.puts client_execute_code(req.split("|")[1])
           req = socket.gets.chomp
           socket.puts client_execute_code(req.split("|")[1])
           server_identity = socket.gets.chomp
-          ps = PeerServer.new(server_identity, socket, ip)
+          ps = PeerServer.new(server_identity, socket, local_ip)
           self.peer_servers << ps
           but = $app.button "#{server_identity}" do
             win = $app.window {}
@@ -341,7 +341,7 @@ class Server
           end
         end
       rescue Exception => e
-        debug "connection refused by: " + ip
+        debug "connection refused by: " + local_ip
       end
     end
   end
