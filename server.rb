@@ -1,5 +1,6 @@
 require 'socket'               # Get sockets from stdlib
 require 'user.rb'
+require 'peer_server.rb'
 
 APP_ROOT = File.dirname(__FILE__)
 
@@ -91,7 +92,8 @@ class Server
       exit!
     end
 
-    accepting
+    @peer_servers_stack = $app.stack {}
+    connect_to_peer_servers
   end
 
   def build_ids
@@ -108,15 +110,17 @@ class Server
       loop {                         # Servers run forever
         debug "accepting.."
         c1 = @server.accept
+        new_user = User.new(c1)
+        @users << new_user
+        index = @users.index(new_user)
         $app.para "Client connected!"
-        c1.puts("code|getethaddr")
-        eth = c1.gets
-        c1.puts("code|whoareyou")
-        identity = c1.gets
-        c1.puts(reveal_identity)
-        @new_user = User.new(identity, c1, eth)
+        @users[index].socket.puts "code|getethaddr"
+        eth = @users[index].socket.gets.chomp
+        @users[index].socket.puts("code|whoareyou")
+        identity = @users[index].socket.gets.chomp
+        $app.para identity + "@" + eth
+        @users[index].socket.puts(reveal_identity)
         # @new_user.save
-        @users << @new_user
         start_serving(socket)
       }
     end
@@ -291,22 +295,61 @@ class Server
   def connect_to_peer_servers
     peers = get_peers
     ips = peers.map {|p| p[:ip]}
+    @access_files_window = {}
     for ip in ips
       begin
-        t = Thread.new($app) do
+        t = Thread.new do
           socket = TCPSocket.open(ip, 4000)
-          req = socket.gets
-          socket.puts User.execute_command(req.split("|")[1])
-          req = socket.gets
-          socket.puts User.execute_command(req.split("|")[1])
-          server_identity = socket.puts
+          req = socket.gets.chomp
+          socket.puts client_execute_code(req.split("|")[1])
+          req = socket.gets.chomp
+          socket.puts client_execute_code(req.split("|")[1])
+          server_identity = socket.gets.chomp
           ps = PeerServer.new(server_identity, socket)
           self.peer_servers << ps
-          debug "connection accepted by: " + ip
+          but = $app.button "#{server_identity}" do
+            window = $app.window {}
+            window.append do
+              window.para "FiLe list of #{server_identity}"
+            end
+            @access_files_window.merge!(["#{server_identity}"] => window)
+          end
         end
       rescue Exception => e
         debug "connection refused by: " + ip
       end
+    end
+    # start_requesting
+  end
+
+  def start_requesting
+    for peer in @peer_servers
+      Thread.new do
+        $app.para "now accpeting on.....#{peer.server_identity}"
+      end
+    end
+  end
+
+  def client_getethaddr
+    value = execute_command("ifconfig")
+    line = value.split("\n")[0]
+    eadr = line.slice(line.length-19..line.length)
+    @ethaddr = eadr
+  end
+
+  def client_reveal_identity
+    username = execute_command("whoami")
+    hostname = execute_command("hostname")
+    return username.chomp + "@" + hostname.chomp
+  end
+
+  def client_execute_code(code)
+    if code=="getethaddr"
+      ans = client_getethaddr
+      return ans
+    elsif code=="whoareyou"
+      identity = client_reveal_identity
+      return identity
     end
   end
 
@@ -474,7 +517,7 @@ $app = Shoes.app(:width => 256) do
   Thread.new do
     begin
     server = Server.new("file_list.txt", "ignore_list.txt", "permission_file.txt")
-    # server.connect_to_peer_servers
+    server.accepting
 
     # users_list = stack do
     #   @check_user = []
