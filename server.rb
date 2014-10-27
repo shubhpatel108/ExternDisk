@@ -112,7 +112,9 @@ class Server
   end
 
   def accepting
-    fork do
+    sleep(1)
+    $app.timer(1) do
+    Thread.new do
       server = TCPServer.open(6000)
       while true
         Thread.new(server.accept) do |client|
@@ -123,6 +125,7 @@ class Server
           client.close
         end
       end
+    end
     end
     $app.para "complete from SERVER"
     Thread.new do
