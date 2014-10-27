@@ -159,7 +159,6 @@ class Server
           @global_permissions.merge!("#{user.username}" => get_individual_permissions(user))
         elsif Server.create_file("#{user.username}_permission_file.txt")
           ask_for_default_permission(user)
-          @global_permissions.merge!("#{user.username}" => get_individual_permissions(user))
         end
         loop {
           request = @users[index].socket.gets.chomp
@@ -616,6 +615,7 @@ class Server
       df.puts "#{id}\t#{value}\n"
     end
     df.close
+    @global_permissions.merge!("#{user.username}" => get_individual_permissions(user))
   end
 
   def to_boolean(str)
