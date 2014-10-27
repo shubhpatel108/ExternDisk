@@ -127,7 +127,6 @@ class Server
       end
     end
     end
-    $app.para "complete from SERVER"
     Thread.new do
       loop {                         # Servers run forever
         debug "accepting.."
@@ -152,15 +151,15 @@ class Server
   end
 
   def start_serving
-    @global_permissions = []
+    @global_permissions = {}
     for user in @users
       index = @users.index(user)
       Thread.new(index, user) do |index, user|
         if File.exists?("#{user.username}_permission_file.txt")
-          @global_permissions << get_individual_permissions(user)
+          @global_permissions.merge!("#{user.username}" => get_individual_permissions(user))
         elsif Server.create_file("#{user.username}_permission_file.txt")
           ask_for_default_permission(user)
-          @global_permissions << get_individual_permissions(user)
+          @global_permissions.merge!("#{user.username}" => get_individual_permissions(user))
         end
         loop {
           request = @users[index].socket.gets.chomp
@@ -192,7 +191,6 @@ class Server
       client.puts(filecontent)
       client.close
     end
-    $app.para "complete from SERVER"
   end
 
   def initial_files(user)
@@ -209,11 +207,11 @@ class Server
     f_names = @ids.select {|key, value| f_ids.include?(value)}
     f_names = f_names.keys
     for f in f_names
-      if string_comp and f.start_with?("#{path}") #and permitted(user, f)
+      if string_comp and f.start_with?("#{path}") and permitted(user, f)
         is_dir = f.end_with?("/").to_s
         name_dir = f + ">>>" + is_dir + ">>>" + @ids[f] + "|||"
         files_to_show += name_dir
-      elsif not string_comp
+      elsif not string_comp and permitted(user, f)
         is_dir = f.end_with?("/").to_s
         name_dir = f + ">>>" + is_dir + ">>>" + @ids[f] + "|||"
         files_to_show += name_dir
@@ -229,9 +227,12 @@ class Server
   end
 
   def permitted(user, filename)
-    permission = @global_permissions[@users.index(user)]
-    if permission["#{filename}"]
-      return true
+    id = @ids["#{filename}"]
+    permission = @global_permissions["#{user.username}"]
+    if not permission["#{id}"].nil?
+      if permission["#{id}"]
+        return true
+      end
     elsif parent=parent(filename)
       permitted(user,parent)
     else
@@ -241,7 +242,8 @@ class Server
 
   def parent(filename)
     paths = filename.split("/")
-    parent = paths.delete(paths.last).join("/") + "/"
+    paths.delete(paths.last)
+    parent = paths.join("/") + "/"
     if not @ids[parent].nil?
       return parent
     else
@@ -252,12 +254,12 @@ class Server
   def get_individual_permissions(user)
     file = File.open("#{user.username}_permission_file.txt")
     files = file.read.split("\n")
-    hash = []
+    hash = {}
     files.each do |f|
       toks = f.split("\t")
       bool = false
-      bool = true if toks=="true"
-      hash << {"#{toks[0]}" => bool}
+      bool = true if toks[1]=="true"
+      hash.merge!("#{toks[0]}" => bool)
     end
     return hash
   end
@@ -301,7 +303,6 @@ class Server
               Thread.new do
                 begin
                   sock = TCPSocket.open(@peer_servers["#{identity}"].ip, 6000)
-                  $app.para "#{tokens[0]}"
                   sock.puts "#{tokens[0]}"
                   data = sock.read
                   new_filename = tokens[0].split("/").last
@@ -348,7 +349,6 @@ class Server
               Thread.new do
                 begin
                   sock = TCPSocket.open(@peer_servers["#{identity}"].ip, 6000)
-                  $app.para "#{tokens[0]}"
                   sock.puts "#{tokens[0]}"
                   data = sock.read
                   new_filename = tokens[0].split("/").last
@@ -427,8 +427,8 @@ class Server
           ps = PeerServer.new(server_identity, socket, local_ip)
           @peer_servers.merge!("#{server_identity}" => ps) 
           but = $app.button "#{ps.identity}" do
-            Thread.current[:win] = $app.window {}
-            @access_windows.merge!("#{ps.identity}" => Thread.current[:win])
+            # Thread.current[:win] = $app.window {}
+            # @access_windows.merge!("#{ps.identity}" => Thread.current[:win])
               ps.socket.puts "start_browsing"
               lss = ps.socket.gets.chomp
               build_files(lss, server_identity)
@@ -439,12 +439,6 @@ class Server
       rescue Exception => e
         debug "connection refused by: " + local_ip
       end
-    end
-  end
-
-  def start_requesting(peer)
-    Thread.new do
-      $app.para "now accpeting on.....#{peer.identity}"
     end
   end
 
