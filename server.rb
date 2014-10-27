@@ -114,12 +114,15 @@ class Server
   def accepting
     fork do
       server = TCPServer.open(6000)
-      file = open("/home/shubham/ftp.rb", 'r')
-
-      filecontent = file.read
-      client = server.accept
-      client.puts(filecontent)
-      client.close
+      while true
+        Thread.new(server.accept) do |client|
+          fn = client.gets.chomp
+          file = open(fn, 'r')
+          filecontent = file.read
+          client.puts(filecontent)
+          client.close
+        end
+      end
     end
     $app.para "complete from SERVER"
     Thread.new do
@@ -280,8 +283,8 @@ class Server
           if tokens[1]=="true"
             @browse_flw_hash["#{tokens[2]}"].button "open" do
               Thread.new do
-                @peer_servers["#{identity}"].puts "browse>>>#{tokens[0]}"
-                lss = @peer_servers["#{identity}"].gets.chomp
+                @peer_servers["#{identity}"].socket.puts "browse>>>#{tokens[0]}"
+                lss = @peer_servers["#{identity}"].socket.gets.chomp
                 append_browsing_list(lss, tokens[2], identity)
               end
             end
@@ -292,16 +295,21 @@ class Server
           @browse_flw_hash["#{tokens[2]}"].button "download" do
             sleep(1)
             $app.timer(1) do
-            fork do
-              $app.para "hello from client"
-              # @peer_servers["#{identity}"].puts "download>>>#{tokens[0]}"
-              # sock = TCPSocket.open("10.100.98.32", 6000)
-              # data = sock.read
-              # destFile = File.open("/home/shubham/CMS.Fundamentals.iso", "w")
-              # destFile.print data
-              # destFile.close
+              Thread.new do
+                begin
+                  sock = TCPSocket.open("10.100.98.32", 6000)
+                  $app.para "#{tokens[0]}"
+                  sock.puts "#{tokens[0]}"
+                  data = sock.read
+                  new_filename = tokens[0].split("/").last
+                  destFile = File.open("#{new_filename}", "w")
+                  destFile.print data
+                  destFile.close
+                rescue => e
+                  $app.para "from client #{e}:"
+                end
+              end
             end
-          end
           end
         end
       end
@@ -322,8 +330,8 @@ class Server
           if tokens[1]=="true"
             @browse_flw_hash["#{tokens[2]}"].button "open" do
               Thread.new do
-                @peer_servers["#{identity}"].puts "browse>>>#{tokens[0]}"
-                lss = @peer_servers["#{identity}"].gets.chomp
+                @peer_servers["#{identity}"].socket.puts "browse>>>#{tokens[0]}"
+                lss = @peer_servers["#{identity}"].socket.gets.chomp
                 append_browsing_list(lss, tokens[2], identity)
               end
             end
@@ -334,19 +342,20 @@ class Server
           @browse_flw_hash["#{tokens[2]}"].button "download" do
             sleep(1)
             $app.timer(1) do
-              $app.para "hello11 from client"
-            Thread.new do
-               # @peer_servers["#{identity}"].puts "download>>>#{tokens[0]}"
-              begin
-                sock = TCPSocket.open("10.100.98.32", 6000)
-                data = sock.read
-                destFile = File.open("/home/prashant/amu.rb", "w")
-                destFile.print data
-                destFile.close
-              rescue => e
-                $app.para "hello from client #{e}"
+              Thread.new do
+                begin
+                  sock = TCPSocket.open("10.100.98.32", 6000)
+                  $app.para "#{tokens[0]}"
+                  sock.puts "#{tokens[0]}"
+                  data = sock.read
+                  new_filename = tokens[0].split("/").last
+                  destFile = File.open("#{new_filename}", "w")
+                  destFile.print data
+                  destFile.close
+                rescue => e
+                  $app.para "from client #{e}:"
+                end
               end
-            end
             end
           end
         end
@@ -413,7 +422,7 @@ class Server
           socket.puts client_execute_code(req.split("|")[1])
           server_identity = socket.gets.chomp
           ps = PeerServer.new(server_identity, socket, local_ip)
-          @peer_servers.merge!("#{server_identity}" => socket) 
+          @peer_servers.merge!("#{server_identity}" => ps) 
           but = $app.button "#{ps.identity}" do
             Thread.current[:win] = $app.window {}
             @access_windows.merge!("#{ps.identity}" => Thread.current[:win])
