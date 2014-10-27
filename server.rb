@@ -300,7 +300,7 @@ class Server
             $app.timer(1) do
               Thread.new do
                 begin
-                  sock = TCPSocket.open("10.100.98.32", 6000)
+                  sock = TCPSocket.open(@peer_servers["#{identity}"].ip, 6000)
                   $app.para "#{tokens[0]}"
                   sock.puts "#{tokens[0]}"
                   data = sock.read
@@ -347,7 +347,7 @@ class Server
             $app.timer(1) do
               Thread.new do
                 begin
-                  sock = TCPSocket.open("10.100.98.32", 6000)
+                  sock = TCPSocket.open(@peer_servers["#{identity}"].ip, 6000)
                   $app.para "#{tokens[0]}"
                   sock.puts "#{tokens[0]}"
                   data = sock.read
