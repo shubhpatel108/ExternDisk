@@ -1,11 +1,13 @@
 require 'socket'               # Get sockets from stdlib
 require 'user.rb'
 require 'peer_server.rb'
+require 'file_utility.rb'
 
 APP_ROOT = File.dirname(__FILE__)
 
 class Server
   attr_accessor :server, :users, :last_id, :files_list, :peer_servers
+  include FileUtility
   @@file_list_path = nil
   @@ignore_list_path = nil
   @@permission_file_path = nil
@@ -22,35 +24,13 @@ class Server
     @@permission_file_path = File.join(APP_ROOT, path)
   end
 
-  def self.file_exists?(path)
-    if path and File.exists?(path)
-      return true
-    else
-      return false
-    end
-  end
-
-  def self.file_usable?(path)
-    return false unless path
-    return false unless File.exists?(path)
-    return false unless File.readable?(path)
-    return false unless File.writable?(path)
-    return true
-  end
-
   def execute_command(cmd="")
     value = %x[#{cmd}]
     value
   end
 
-  def self.create_file(path)
-    # create the restaurant file
-    File.open(path, 'w') unless file_exists?(path)
-    return file_usable?(path)
-  end
-
   def save_listing
-    return false unless User.file_usable?
+    return false unless FileUtility.file_usable?
     File.open(@@file_list_path, "w") do |file|
       file.puts "#{@file_list}"
     end
@@ -69,11 +49,11 @@ class Server
     Server.file_list_path = path
     Server.ignore_list_path = ignore_path
     Server.permission_file_path = permission_file_path
-    if Server.file_usable?(@@file_list_path)
+    if FileUtility.file_usable?(@@file_list_path)
       build_ids
       debug "Found files list."
     # or create a new file
-    elsif Server.create_file(@@file_list_path)
+    elsif FileUtility.create_file(@@file_list_path)
       response = execute_command("ls /home/")
       parse_ls_response("/home/", response.split("\n"))
       # response = execute_command("ls /media/")
@@ -85,10 +65,10 @@ class Server
       exit!
     end
 
-    if Server.file_usable?(@@permission_file_path)
+    if FileUtility.file_usable?(@@permission_file_path)
       debug "Found files list."
     # or create a new file
-    elsif Server.create_file(@@permission_file_path)
+    elsif FileUtility.create_file(@@permission_file_path)
       ask_for_default_permission
     else
       puts "Exiting.\n\n"
@@ -157,7 +137,7 @@ class Server
       Thread.new(index, user) do |index, user|
         if File.exists?("#{user.username}_permission_file.txt")
           @global_permissions.merge!("#{user.username}" => get_individual_permissions(user))
-        elsif Server.create_file("#{user.username}_permission_file.txt")
+        elsif FileUtility.create_file("#{user.username}_permission_file.txt")
           ask_for_default_permission(user)
         end
         loop {
