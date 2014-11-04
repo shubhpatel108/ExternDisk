@@ -3,6 +3,7 @@ require 'user.rb'
 require 'peer_server.rb'
 require 'file_utility.rb'
 require 'shoesgui.rb'
+require 'client.rb'
 
 APP_ROOT = File.dirname(__FILE__)
 
@@ -10,6 +11,7 @@ class Server
   attr_accessor :server, :users, :last_id, :files_list, :peer_servers
   include FileUtility
   include ShoesGUI
+  include ClientSide
 
   @@file_list_path = nil
   @@ignore_list_path = nil
@@ -78,7 +80,6 @@ class Server
       exit!
     end
 
-    @peer_servers_stack = $app.stack {}
     connect_to_peer_servers
   end
 
@@ -385,100 +386,6 @@ class Server
     file.close
   end
 
-  def connect_to_peer_servers
-    @access_files_window = {}
-    peers = get_peers
-    ips = peers.map {|p| p[:ip]}
-    for ip in ips
-      begin
-        t = Thread.new(ip) do |local_ip|
-          socket = TCPSocket.open(local_ip, 5000)
-          req = socket.gets.chomp
-          socket.puts client_execute_code(req.split("|")[1])
-          req = socket.gets.chomp
-          socket.puts client_execute_code(req.split("|")[1])
-          server_identity = socket.gets.chomp
-          ps = PeerServer.new(server_identity, socket, local_ip)
-          @peer_servers.merge!("#{server_identity}" => ps) 
-          but = $app.button "#{ps.identity}" do
-            # Thread.current[:win] = $app.window {}
-            # @access_windows.merge!("#{ps.identity}" => Thread.current[:win])
-              ps.socket.puts "start_browsing"
-              lss = ps.socket.gets.chomp
-              build_files(lss, server_identity)
-              # ps.socket.puts "confirm_listening"
-              # while ps.socket.gets.chomp == "true"
-          end
-        end
-      rescue Exception => e
-        debug "connection refused by: " + local_ip
-      end
-    end
-  end
-
-  def client_getethaddr
-    value = execute_command("ifconfig")
-    line = value.split("\n")[0]
-    eadr = line.slice(line.length-19..line.length)
-    @ethaddr = eadr
-  end
-
-  def client_reveal_identity
-    username = execute_command("whoami")
-    hostname = execute_command("hostname")
-    return username.chomp + "@" + hostname.chomp
-  end
-
-  def client_execute_code(code)
-    if code=="getethaddr"
-      ans = client_getethaddr
-      return ans
-    elsif code=="whoareyou"
-      identity = client_reveal_identity
-      return identity
-    end
-  end
-
-  def get_peers
-    command = "nmap -sP 10.100.98.*"
-    value = %x[#{command}]
-    peers = []
-    lines = value.split("\n")
-    lines.delete(lines.first)
-    lines.delete(lines.first)
-    for line in lines
-      # tokens = line.split(/[\s()]/)
-      ip = line.split(" ")[4]
-      lines.delete(lines[lines.index(line)])
-      peer = {:ip => ip, :ethadr => "no-ethr"}
-      # peer = {:ip => tokens[2], :ethadr => tokens[5]}
-      peers << peer
-    end
-    #for now include self as other client
-    # peers << {:ip => "localhost", :ethadr => "00:26:6c:e2:56:d8"}
-    return peers
-  end
-
-  def files_at_depth(depth, path)
-    string_comp = true
-    string_comp = false if path==""
-    file = File.open(@@file_list_path, "r")
-    files = file.read.split("\n")
-    files_to_show = []
-    for ff in files
-      f = ff.split("\t")
-      dp = f[1]
-      name = f[3]
-      if dp==depth and string_comp and name.start_with?("#{path}")
-        files_to_show << ff
-      elsif dp==depth and not string_comp
-        files_to_show << ff
-      end
-    end
-    file.close
-    files_to_show
-  end
-
   def write_default_permissions
     df = File.open("permission_file.txt", "w")
     @permission.each do |id, value|
@@ -496,17 +403,6 @@ class Server
     @global_permissions.merge!("#{user.username}" => get_individual_permissions(user))
   end
 
-  def execute_code(socket, code)
-    code = sock.gets
-    case code
-    when "getethaddr"
-      getethaddr
-      socket.puts @ethraddr
-    when "whoareyou"
-      identity = reveal_identity
-      socket.puts identity
-    end
-  end
 end
 
 $app = Shoes.app(:width => 256) do
