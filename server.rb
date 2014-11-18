@@ -421,6 +421,9 @@ class Server
   end
 
   def connect_to_specific_server(ip)
+    if ip==exe_cmd("ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}'")
+      return
+    end
     begin
         t = Thread.new(ip) do |local_ip|
           socket = TCPSocket.open(local_ip, 5000)
@@ -436,11 +439,16 @@ class Server
             lss = ps.socket.gets.chomp
             build_files(lss, server_identity)
           end
-          socket.puts client_execute_code("ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}'")
+          socket.puts exe_cmd("ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}'")
         end
       rescue Exception => e
         debug "connection refused by: " + local_ip
       end
+  end
+
+  def exe_cmd(cmd)
+    value = `#{cmd}`
+    return value.chomp
   end
 
   def client_getethaddr
