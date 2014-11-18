@@ -271,6 +271,7 @@ class Server
   end
 
   def build_files(result, identity)
+    debug "ARE you here?"
     win3 = $app.window {}
     @access_windows.merge!("#{identity}" => win3)
     @access_windows["#{identity}"].para "You are browsing #{identity}"
@@ -442,11 +443,7 @@ class Server
           server_identity = socket.gets.chomp
           ps = PeerServer.new(server_identity, socket, local_ip)
           @peer_servers.merge!("#{server_identity}" => ps) 
-          but = $app.button "#{ps.identity}" do
-            ps.socket.puts "start_browsing"
-            lss = ps.socket.gets.chomp
-            build_files(lss, server_identity)
-          end
+          update_server_list
           socket.puts exe_cmd("ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}'")
         end
       rescue Exception => e
@@ -457,6 +454,18 @@ class Server
   def exe_cmd(cmd)
     value = `#{cmd}`
     return value.chomp
+  end
+
+  def update_server_list
+    peerss = @peer_servers.values
+    @peer_servers_stack.clear()
+    for ps in peerss
+      but = $app.button "#{ps.identity}" do
+        ps.socket.puts "start_browsing"
+        lss = ps.socket.gets.chomp
+        build_files(lss, ps.identity)
+      end
+    end
   end
 
   def client_getethaddr
