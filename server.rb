@@ -424,6 +424,14 @@ class Server
     if ip==exe_cmd("ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}'")
       return
     end
+    pss = @peer_servers.values
+    iii = []
+    for p in pss
+      iii << p.ip
+    end
+    if iii.include?(ip)
+      return
+    end
     begin
         t = Thread.new(ip) do |local_ip|
           socket = TCPSocket.open(local_ip, 5000)
