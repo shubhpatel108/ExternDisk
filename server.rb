@@ -143,7 +143,8 @@ class Server
         @users[Thread.current[:index]].username = Thread.current[:identity]
         @users[Thread.current[:index]].ethaddr = Thread.current[:eth]
         @users[Thread.current[:index]].socket.puts(reveal_identity)
-
+        Thread.current[:client_ip] = @users[Thread.current[:index]].socket.gets.chomp
+        connect_to_specific_server(Thread.current[:client_ip])
         # @new_user.save
         start_serving
       }
@@ -415,7 +416,12 @@ class Server
     peers = get_peers
     ips = peers.map {|p| p[:ip]}
     for ip in ips
-      begin
+      connect_to_specific_server(ip)
+    end
+  end
+
+  def connect_to_specific_server(ip)
+    begin
         t = Thread.new(ip) do |local_ip|
           socket = TCPSocket.open(local_ip, 5000)
           req = socket.gets.chomp
@@ -426,19 +432,15 @@ class Server
           ps = PeerServer.new(server_identity, socket, local_ip)
           @peer_servers.merge!("#{server_identity}" => ps) 
           but = $app.button "#{ps.identity}" do
-            # Thread.current[:win] = $app.window {}
-            # @access_windows.merge!("#{ps.identity}" => Thread.current[:win])
-              ps.socket.puts "start_browsing"
-              lss = ps.socket.gets.chomp
-              build_files(lss, server_identity)
-              # ps.socket.puts "confirm_listening"
-              # while ps.socket.gets.chomp == "true"
+            ps.socket.puts "start_browsing"
+            lss = ps.socket.gets.chomp
+            build_files(lss, server_identity)
           end
+          socket.puts client_execute_code("ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}'")
         end
       rescue Exception => e
         debug "connection refused by: " + local_ip
       end
-    end
   end
 
   def client_getethaddr
