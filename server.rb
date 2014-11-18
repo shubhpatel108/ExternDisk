@@ -366,9 +366,9 @@ class Server
   end
 
   def parse_ls_response(path, files)
-    if is_ignored?(path)
-      return
-    end
+    # if is_ignored?(path)
+    #   return
+    # end
     queue = []
     files.each do |f|
       if File.directory?(path + f)
@@ -486,7 +486,7 @@ class Server
 
   def ask_for_default_permission(user=nil)
     win1 = $app.window {}
-    @permission_windows.merge!("#{user.username}" => win1)
+    @permission_windows.merge!("#{user.username}" => win1) unless user.nil?
     @permission_windows["#{user.username}"].para "Please select view for #{user.username}" unless user.nil?
     files_to_show = files_at_depth("2", "")
     @stk1 = win1.stack {}
